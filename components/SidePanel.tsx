@@ -101,7 +101,7 @@ export default function SidePanel({
           onClick={onReset}
           className="retro-button"
         >
-          MENU
+          다시 시작
         </button>
       </div>
     </div>
