@@ -33,7 +33,14 @@ export default function StartScreen() {
     }
   };
 
-  const isFormValid = name.trim() !== '' && subject.trim() !== '' && dept.trim() !== '' && studentName.trim() !== '';
+  const handleQuit = () => {
+    if (confirm('모든 입력 정보를 초기화하고 종료하시겠습니까?')) {
+      localStorage.clear();
+      setName('');
+      setStudentName('');
+      alert('정보가 삭제되었습니다. 브라우저 탭을 닫아주세요.');
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#1a1a1a]">
@@ -90,13 +97,21 @@ export default function StartScreen() {
             </div>
           </div>
 
-          <button
-            onClick={handleStart}
-            disabled={!isFormValid}
-            className={`retro-button py-4 text-xl mt-4 ${!isFormValid ? 'opacity-30 border-slate-700 text-slate-700 cursor-not-allowed' : ''}`}
-          >
-            START GAME
-          </button>
+          <div className="flex gap-3 w-full mt-4">
+            <button
+              onClick={handleStart}
+              disabled={!isFormValid}
+              className={`retro-button flex-1 py-4 text-xl ${!isFormValid ? 'opacity-30 border-slate-700 text-slate-700 cursor-not-allowed' : 'hover:bg-white hover:text-black hover:border-white'}`}
+            >
+              START
+            </button>
+            <button
+              onClick={handleQuit}
+              className="retro-button flex-1 py-4 text-xl border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+            >
+              종료하기
+            </button>
+          </div>
         </div>
       </div>
     </div>
