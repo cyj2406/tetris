@@ -4,24 +4,31 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const gasUrl = process.env.NEXT_PUBLIC_GAS_URL;
+    
     if (!gasUrl) {
+      console.error("GAS URL is missing");
       return NextResponse.json({ success: false, error: 'Config error' }, { status: 500 });
     }
 
-    const response = await fetch(gasUrl, {
+    // Use fetch with cache: no-store and manual redirect follow logic for robustness
+    const response = await fetch(`${gasUrl}${gasUrl.includes('?') ? '&' : '?'}t=${Date.now()}`, {
       method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
       redirect: 'follow',
-      cache: 'no-store' // Ensure we always get fresh data
+      cache: 'no-store',
     });
 
     if (!response.ok) {
-      throw new Error(`GAS returned ${response.status}`);
+      throw new Error(`GAS Ranking Fetch Error: ${response.status}`);
     }
 
-    const rankings = await response.json();
-    return NextResponse.json(rankings);
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error: any) {
     console.error("API Error (get-rankings):", error.message);
-    return NextResponse.json([], { status: 500 });
+    // Return empty array on error to prevent UI crash
+    return NextResponse.json([]);
   }
 }

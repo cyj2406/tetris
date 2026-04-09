@@ -50,6 +50,9 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
         });
         setIsSaving(false);
 
+        // 구글 시트 데이터 전파를 위해 1초간 대기 후 랭킹 조회
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
         if (Array.isArray(data)) {
