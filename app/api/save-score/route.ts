@@ -7,28 +7,26 @@ export async function POST(request: Request) {
     const gasUrl = process.env.NEXT_PUBLIC_GAS_URL;
     
     if (!gasUrl) {
-      console.error("GAS URL is missing in environment variables");
-      return NextResponse.json({ success: false, error: 'GAS URL is missing' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'NEXT_PUBLIC_GAS_URL is missing' }, { status: 500 });
     }
 
-    // GAS works more reliably without specific content-type headers from server-side fetch
-    // as it handles the body as a raw post stream.
+    // Using text/plain for Google Apps Script to avoid CORS preflight and handle 302 redirects properly
     const response = await fetch(gasUrl, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
       body: JSON.stringify(body),
-      redirect: 'follow', // Important: Google Apps Script redirects on POST
+      redirect: 'follow',
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("GAS responded with error:", response.status, errorText);
-      throw new Error(`GAS Error: ${response.status}`);
+      throw new Error(`Google Script returned status ${response.status}`);
     }
 
-    const result = await response.text();
-    return NextResponse.json({ success: true, serverResponse: result });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("API Error (save-score):", error.message);
+    console.error("Save-score route error:", error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
