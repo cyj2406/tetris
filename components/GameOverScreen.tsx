@@ -22,6 +22,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(true);
+  const [debugMsg, setDebugMsg] = useState('준비 중...');
   const hasSaved = useRef(false);
 
   useEffect(() => {
@@ -29,7 +30,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     hasSaved.current = true;
 
     const handleSaveAndFetch = async () => {
-      // 닉네임 대신 하단 정보창에 입력한 '이름'을 우선적으로 가져옵니다.
       const studentName = localStorage.getItem('tetris_student_name');
       const playerNick = localStorage.getItem('tetris_player_name');
       const actualName = studentName || playerNick || playerName || 'Unknown';
@@ -39,8 +39,9 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
       try {
-        setIsSaving(true);
-        await fetch('/api/save-score', {
+        setDebugMsg('데이터 전송 중...');
+        // Save score
+        const saveRes = await fetch('/api/save-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -48,23 +49,33 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
             finishtime: formattedFinishedTime
           }),
         });
+        
+        const saveResult = await saveRes.json();
+        if (saveResult.success) {
+          setDebugMsg('저장 완료! 랭킹 조회 중...');
+        } else {
+          setDebugMsg('저장 에러: ' + saveResult.error);
+        }
+        
         setIsSaving(false);
 
-        // 구글 시트 데이터 전파를 위해 1초간 대기 후 랭킹 조회
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait a bit for Google Sheets to propagate
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
+        // Fetch rankings
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
         
-        // API 리턴 형식이 배열이거나 객체 내부 배열인 경우 모두 대응
         const finalRankings = Array.isArray(data) ? data : (data.rankings || []);
         if (finalRankings.length > 0) {
           setRankings(finalRankings);
+          setDebugMsg('모든 데이터 연동 성공');
         } else {
-          console.log("No ranks returned:", data);
+          setDebugMsg('랭킹 데이터가 비어있습니다.');
         }
-      } catch (err) {
-        console.error("Communication error:", err);
+      } catch (err: any) {
+        setDebugMsg('통신 장애: ' + err.message);
+        console.error(err);
       } finally {
         setLoading(false);
         setIsSaving(false);
@@ -72,7 +83,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     };
 
     handleSaveAndFetch();
-  }, []);
+  }, [playerName, timer]);
 
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);
@@ -113,32 +124,33 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
                 </thead>
                 <tbody className="font-mono text-sm font-bold">
                   {loading ? (
-                    <tr><td colSpan={3} className="py-6 text-center text-xs italic text-slate-600 font-normal">Loading Rankings...</td></tr>
+                    <tr><td colSpan={3} className="py-6 text-center text-xs italic text-slate-600 font-normal">Loading...</td></tr>
                   ) : rankings.length > 0 ? (
                     rankings.map((r, i) => (
                       <tr key={i} className="border-b border-[#111] last:border-0 hover:bg-white/5">
                         <td className="py-2 px-4 text-cyan-500">#{i + 1}</td>
                         <td className="py-2 px-4 truncate max-w-[150px]">{r.name}</td>
-                        <td className="py-2 px-4 text-right">
-                          {r.timeSeconds && r.timeSeconds > 0 ? formatTime(r.timeSeconds) : formatTime(0)}
-                        </td>
+                        <td className="py-2 px-4 text-right">{formatTime(r.timeSeconds)}</td>
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={3} className="py-6 text-center text-xs text-slate-600 font-normal">No records.</td></tr>
+                    <tr><td colSpan={3} className="py-6 text-center text-xs text-slate-600 font-normal">No records found.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          <button
-            onClick={onRestart}
-            disabled={isSaving}
-            className={`retro-button py-4 text-xl mt-4 bg-white text-black font-bold uppercase transition-all ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200'}`}
-          >
-            {isSaving ? '저장 중...' : 'PLAY AGAIN'}
-          </button>
+          <div className="flex flex-col w-full gap-2">
+            <button
+              onClick={onRestart}
+              disabled={isSaving}
+              className={`retro-button py-4 text-xl bg-white text-black font-bold uppercase transition-all ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200'}`}
+            >
+              {isSaving ? '저장 중...' : 'PLAY AGAIN'}
+            </button>
+            <p className="text-[9px] text-slate-600 text-center uppercase tracking-widest">{debugMsg}</p>
+          </div>
         </div>
       </div>
     </div>
