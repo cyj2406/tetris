@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function StartScreen() {
+  const [mounted, setMounted] = useState(false);
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [dept, setDept] = useState('');
@@ -12,6 +13,7 @@ export default function StartScreen() {
   const router = useRouter();
 
   useEffect(() => {
+    setMounted(true);
     const savedName = localStorage.getItem('tetris_player_name');
     const savedSubject = localStorage.getItem('tetris_subject') || 'AI 코딩';
     const savedDept = localStorage.getItem('tetris_dept') || '컴퓨터공학과';
@@ -34,13 +36,17 @@ export default function StartScreen() {
   };
 
   const handleQuit = () => {
-    if (confirm('모든 입력 정보를 초기화하고 종료하시겠습니까?')) {
+    if (typeof window !== 'undefined' && confirm('모든 입력 정보를 초기화하고 종료하시겠습니까?')) {
       localStorage.clear();
       setName('');
       setStudentName('');
       alert('정보가 삭제되었습니다. 브라우저 탭을 닫아주세요.');
     }
   };
+
+  if (!mounted) return null;
+
+  const isFormValid = name.trim() !== '' && subject.trim() !== '' && dept.trim() !== '' && studentName.trim() !== '';
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#1a1a1a]">
@@ -51,7 +57,7 @@ export default function StartScreen() {
           </h1>
           
           <div className="w-full space-y-2">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Player Name</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-white">Player Name</label>
             <input
               type="text"
               value={name}
@@ -67,7 +73,7 @@ export default function StartScreen() {
             
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16">과목명:</span>
+                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16 text-white">과목명:</span>
                 <input
                   type="text"
                   value={subject}
@@ -76,7 +82,7 @@ export default function StartScreen() {
                 />
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16">학과:</span>
+                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16 text-white">학과:</span>
                 <input
                   type="text"
                   value={dept}
@@ -85,7 +91,7 @@ export default function StartScreen() {
                 />
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16">이름:</span>
+                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16 text-white">이름:</span>
                 <input
                   type="text"
                   value={studentName}
