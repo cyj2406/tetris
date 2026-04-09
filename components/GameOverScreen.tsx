@@ -111,8 +111,9 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
                       <tr key={i} className="border-b border-[#111] last:border-0 hover:bg-white/5">
                         <td className="py-2 px-4 text-cyan-500">#{i + 1}</td>
                         <td className="py-2 px-4 truncate max-w-[150px]">{r.name}</td>
-                        {/* 날짜로 변환되는 것을 방지하기 위해 timeSeconds를 다시 포맷팅하여 표시합니다. */}
-                        <td className="py-2 px-4 text-right">{formatTime(r.timeSeconds)}</td>
+                        <td className="py-2 px-4 text-right">
+                          {r.timeSeconds && r.timeSeconds > 0 ? formatTime(r.timeSeconds) : formatTime(0)}
+                        </td>
                       </tr>
                     ))
                   ) : (
