@@ -29,17 +29,17 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     hasSaved.current = true;
 
     const handleSaveAndFetch = async () => {
-      // 1. 이름 결정 (localStorage 우선)
-      const actualName = localStorage.getItem('tetris_player_name') || playerName || 'Unknown';
+      // 닉네임 대신 하단 정보창에 입력한 '이름'을 우선적으로 가져옵니다.
+      const studentName = localStorage.getItem('tetris_student_name');
+      const playerNick = localStorage.getItem('tetris_player_name');
+      const actualName = studentName || playerNick || playerName || 'Unknown';
       
-      // 2. 시간 포맷팅 (0:00 형식 문자열 생성)
       const mins = Math.floor(timer / 60);
       const secs = timer % 60;
       const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
       try {
         setIsSaving(true);
-        // 3. 구글 시트로 데이터 전송 (딱 2가지 필드만 포함)
         await fetch('/api/save-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -50,7 +50,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
         });
         setIsSaving(false);
 
-        // 4. 랭킹 불러오기
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -70,7 +69,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);
     const secs = s % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -112,7 +111,8 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
                       <tr key={i} className="border-b border-[#111] last:border-0 hover:bg-white/5">
                         <td className="py-2 px-4 text-cyan-500">#{i + 1}</td>
                         <td className="py-2 px-4 truncate max-w-[150px]">{r.name}</td>
-                        <td className="py-2 px-4 text-right">{r.formattedTime || formatTime(r.timeSeconds)}</td>
+                        {/* 날짜로 변환되는 것을 방지하기 위해 timeSeconds를 다시 포맷팅하여 표시합니다. */}
+                        <td className="py-2 px-4 text-right">{formatTime(r.timeSeconds)}</td>
                       </tr>
                     ))
                   ) : (
