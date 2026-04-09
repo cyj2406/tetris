@@ -55,8 +55,13 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
 
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
-        if (Array.isArray(data)) {
-          setRankings(data);
+        
+        // API 리턴 형식이 배열이거나 객체 내부 배열인 경우 모두 대응
+        const finalRankings = Array.isArray(data) ? data : (data.rankings || []);
+        if (finalRankings.length > 0) {
+          setRankings(finalRankings);
+        } else {
+          console.log("No ranks returned:", data);
         }
       } catch (err) {
         console.error("Communication error:", err);
