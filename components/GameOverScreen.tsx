@@ -40,15 +40,21 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
 
       try {
         setDebugMsg('데이터 전송 중...');
-        // Save score
-        const saveRes = await fetch('/api/save-score', {
+        const apiUrl = `${window.location.origin}/api/save-score`;
+        
+        const saveRes = await fetch(apiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
           body: JSON.stringify({
             name: actualName, 
             finishtime: formattedFinishedTime
           }),
         });
+        
+        if (!saveRes.ok) throw new Error(`Server Error: ${saveRes.status}`);
         
         const saveResult = await saveRes.json();
         if (saveResult.success) {
