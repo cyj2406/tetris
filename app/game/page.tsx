@@ -13,7 +13,6 @@ export default function GamePage() {
   const [mounted, setMounted] = useState(false);
   const tetris = useTetris();
 
-  // Ensure component is mounted on client before rendering to avoid hydration issues
   useEffect(() => {
     setMounted(true);
     const savedName = localStorage.getItem('tetris_player_name');
@@ -22,35 +21,19 @@ export default function GamePage() {
     } else {
       tetris.startGame(savedName);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Use a separate effect for keyboard events to keep it simple
   useEffect(() => {
     if (!mounted || tetris.status !== 'PLAYING') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case 'ArrowLeft':
-          tetris.moveSide(-1);
-          break;
-        case 'ArrowRight':
-          tetris.moveSide(1);
-          break;
-        case 'ArrowDown':
-          tetris.moveDown();
-          break;
-        case 'ArrowUp':
-          tetris.rotate();
-          break;
-        case ' ':
-          e.preventDefault();
-          tetris.hardDrop();
-          break;
-        case 'p':
-        case 'P':
-          tetris.togglePause();
-          break;
+        case 'ArrowLeft': tetris.moveSide(-1); break;
+        case 'ArrowRight': tetris.moveSide(1); break;
+        case 'ArrowDown': tetris.moveDown(); break;
+        case 'ArrowUp': tetris.rotate(); break;
+        case ' ': e.preventDefault(); tetris.hardDrop(); break;
+        case 'p': case 'P': tetris.togglePause(); break;
       }
     };
 
@@ -72,6 +55,7 @@ export default function GamePage() {
           status={tetris.status}
           score={tetris.score}
           timer={tetris.timer}
+          linesCleared={tetris.linesCleared}
           playerName={tetris.playerName}
           onRestart={handleRestart}
         />
@@ -82,7 +66,7 @@ export default function GamePage() {
           <GameBoard board={tetris.board} activePiece={tetris.activePiece} ghostPos={tetris.ghostPos} />
           {tetris.status === 'PAUSED' && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-              <div className="text-4xl font-bold tracking-widest text-white shadow-lg">PAUSED</div>
+              <div className="text-4xl font-bold tracking-widest text-white">PAUSED</div>
             </div>
           )}
         </div>
