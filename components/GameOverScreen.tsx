@@ -22,7 +22,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(true);
-
   const hasSaved = useRef(false);
 
   useEffect(() => {
@@ -30,22 +29,28 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     hasSaved.current = true;
 
     const handleSaveAndFetch = async () => {
+      // 1. 이름 결정 (localStorage 우선)
       const actualName = localStorage.getItem('tetris_player_name') || playerName || 'Unknown';
+      
+      // 2. 시간 포맷팅 (0:00 형식 문자열 생성)
+      const mins = Math.floor(timer / 60);
+      const secs = timer % 60;
+      const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
       try {
         setIsSaving(true);
+        // 3. 구글 시트로 데이터 전송 (딱 2가지 필드만 포함)
         await fetch('/api/save-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: actualName, 
-            timeSeconds: timer,
-            score: score,
-            linesCleared: linesCleared
+            finishtime: formattedFinishedTime
           }),
         });
         setIsSaving(false);
 
+        // 4. 랭킹 불러오기
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -71,19 +76,20 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
   return (
     <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 backdrop-blur-md text-white">
       <div className="retro-container flex-col p-4 w-full max-w-[500px] animate-in fade-in zoom-in duration-300">
-        <div className="bg-black p-8 border border-[#444] rounded flex flex-col items-center gap-6 w-full">
+        <div className="bg-black p-8 border border-[#444] rounded flex flex-col items-center gap-6 w-full text-white">
+          
           <h2 className={`text-4xl font-bold tracking-tighter ${status === 'WIN' ? 'text-cyan-400' : 'text-red-500'} uppercase`}>
             {status === 'WIN' ? 'COMPLETED!' : 'GAME OVER'}
           </h2>
 
-          <div className="grid grid-cols-2 gap-4 w-full text-white">
-            <div className="bg-[#111] p-4 border border-[#333] rounded text-center">
-              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Time Result</div>
+          <div className="grid grid-cols-2 gap-4 w-full">
+            <div className="bg-[#111] p-4 border border-[#333] rounded text-center text-white">
+              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Total Time</div>
               <div className="text-2xl font-bold font-mono text-cyan-400">{formatTime(timer)}</div>
             </div>
-            <div className="bg-[#111] p-4 border border-[#333] rounded text-center">
+            <div className="bg-[#111] p-4 border border-[#333] rounded text-center text-white">
               <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Status</div>
-              <div className="text-2xl font-bold font-mono">{status === 'WIN' ? 'WIN' : 'LOSE'}</div>
+              <div className="text-2xl font-bold font-mono">{status}</div>
             </div>
           </div>
 
