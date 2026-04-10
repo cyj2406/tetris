@@ -28,7 +28,8 @@ export default function StartScreen() {
   const handleStart = () => {
     console.log("Start button clicked, checking form validity...");
     if (isFormValid) {
-      localStorage.setItem('tetris_player_name', name);
+      // Use studentName as the official player name for the game
+      localStorage.setItem('tetris_player_name', studentName);
       localStorage.setItem('tetris_subject', subject);
       localStorage.setItem('tetris_dept', dept);
       localStorage.setItem('tetris_student_name', studentName);
@@ -50,7 +51,8 @@ export default function StartScreen() {
 
   if (!mounted) return null;
 
-  const isFormValid = name.trim() !== '' && subject.trim() !== '' && dept.trim() !== '' && studentName.trim() !== '';
+  // Reduced validation items: Now only subject, dept, and studentName are required
+  const isFormValid = subject.trim() !== '' && dept.trim() !== '' && studentName.trim() !== '';
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#1a1a1a]">
@@ -60,19 +62,7 @@ export default function StartScreen() {
             TETRIS
           </h1>
           
-          <div className="w-full space-y-2">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-white">Player Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="ENTER PLAYER NAME..."
-              className="w-full px-4 py-3 bg-[#111] border-2 border-[#333] rounded focus:border-white focus:outline-none transition-all text-white font-mono uppercase tracking-widest text-sm"
-              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-            />
-          </div>
-
-          <div className="w-full space-y-4 pt-6 border-t border-[#333]">
+          <div className="w-full space-y-4 pt-2">
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center mb-2">Student Information</h3>
             
             <div className="space-y-3">
@@ -102,6 +92,7 @@ export default function StartScreen() {
                   onChange={(e) => setStudentName(e.target.value)}
                   placeholder="본인 이름을 입력하세요"
                   className="flex-1 bg-transparent border-b border-[#333] text-sm text-white focus:border-white focus:outline-none py-1"
+                  onKeyDown={(e) => e.key === 'Enter' && handleStart()}
                 />
               </div>
             </div>
