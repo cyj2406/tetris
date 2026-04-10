@@ -21,6 +21,8 @@ export async function GET() {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`GAS Ranking Fetch Error: ${response.status}`, errorText);
       throw new Error(`GAS Ranking Fetch Error: ${response.status}`);
     }
 

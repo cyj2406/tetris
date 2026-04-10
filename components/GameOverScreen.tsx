@@ -22,72 +22,63 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(true);
-  const [debugMsg, setDebugMsg] = useState('준비 중...');
+  const [debugMsg, setDebugMsg] = useState('시스템 준비 중...');
   const hasSaved = useRef(false);
 
-  useEffect(() => {
-    if (hasSaved.current) return;
-    hasSaved.current = true;
+  const handleSaveAndFetch = async () => {
+    const studentName = localStorage.getItem('tetris_student_name');
+    const playerNick = localStorage.getItem('tetris_player_name');
+    const actualName = studentName || playerNick || playerName || 'Unknown';
+    
+    const mins = Math.floor(timer / 60);
+    const secs = timer % 60;
+    const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
-    const handleSaveAndFetch = async () => {
-      const studentName = localStorage.getItem('tetris_student_name');
-      const playerNick = localStorage.getItem('tetris_player_name');
-      const actualName = studentName || playerNick || playerName || 'Unknown';
+    try {
+      setIsSaving(true);
+      setDebugMsg('데이터 시트로 전송 중...');
       
-      const mins = Math.floor(timer / 60);
-      const secs = timer % 60;
-      const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
-
-      try {
-        setDebugMsg('데이터 전송 중...');
-        const apiUrl = `${window.location.origin}/api/save-score`;
+      const saveRes = await fetch('/api/save-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: actualName, 
+          finishtime: formattedFinishedTime
+        }),
+      });
+      
+      const saveResult = await saveRes.json();
+      if (saveResult.success) {
+        setDebugMsg('저장 성공! 랭킹 업데이트 중...');
         
-        const saveRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            name: actualName, 
-            finishtime: formattedFinishedTime
-          }),
-        });
-        
-        if (!saveRes.ok) throw new Error(`Server Error: ${saveRes.status}`);
-        
-        const saveResult = await saveRes.json();
-        if (saveResult.success) {
-          setDebugMsg('저장 완료! 랭킹 조회 중...');
-        } else {
-          setDebugMsg('저장 에러: ' + saveResult.error);
-        }
-        
-        setIsSaving(false);
-
-        // Wait a bit for Google Sheets to propagate
+        // Wait 1.5s for Sheet propagation
         await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Fetch rankings
+        
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
         
         const finalRankings = Array.isArray(data) ? data : (data.rankings || []);
         if (finalRankings.length > 0) {
           setRankings(finalRankings);
-          setDebugMsg('모든 데이터 연동 성공');
+          setDebugMsg('연동 완료');
         } else {
-          setDebugMsg('랭킹 데이터가 비어있습니다.');
+          setDebugMsg('저장 성공했으나 랭킹 목록이 비어있음');
         }
-      } catch (err: any) {
-        setDebugMsg('통신 장애: ' + err.message);
-        console.error(err);
-      } finally {
-        setLoading(false);
-        setIsSaving(false);
+      } else {
+        setDebugMsg('저장 실패: ' + (saveResult.error || '통신 오류'));
       }
-    };
+    } catch (err: any) {
+      setDebugMsg('네트워크 에러: ' + err.message);
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    if (hasSaved.current) return;
+    hasSaved.current = true;
     handleSaveAndFetch();
   }, [playerName, timer]);
 
@@ -108,12 +99,12 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
 
           <div className="grid grid-cols-2 gap-4 w-full">
             <div className="bg-[#111] p-4 border border-[#333] rounded text-center text-white">
-              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Total Time</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Time Result</div>
               <div className="text-2xl font-bold font-mono text-cyan-400">{formatTime(timer)}</div>
             </div>
             <div className="bg-[#111] p-4 border border-[#333] rounded text-center text-white">
               <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Status</div>
-              <div className="text-2xl font-bold font-mono">{status}</div>
+              <div className="text-2xl font-bold font-mono">{status === 'WIN' ? 'SUCCESS' : 'FINISH'}</div>
             </div>
           </div>
 
@@ -136,7 +127,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
                       <tr key={i} className="border-b border-[#111] last:border-0 hover:bg-white/5">
                         <td className="py-2 px-4 text-cyan-500">#{i + 1}</td>
                         <td className="py-2 px-4 truncate max-w-[150px]">{r.name}</td>
-                        <td className="py-2 px-4 text-right">{formatTime(r.timeSeconds)}</td>
+                        <td className="py-2 px-4 text-right">{r.formattedTime || formatTime(r.timeSeconds)}</td>
                       </tr>
                     ))
                   ) : (
@@ -148,12 +139,19 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           </div>
 
           <div className="flex flex-col w-full gap-2">
+            {!isSaving && debugMsg.includes('실패') && (
+              <button 
+                onClick={handleSaveAndFetch}
+                className="text-[10px] text-red-400 underline hover:text-red-300 transition-colors uppercase tracking-widest mb-1"
+              >
+                Retry Manual Save
+              </button>
+            )}
             <button
               onClick={onRestart}
-              disabled={isSaving}
-              className={`retro-button py-4 text-xl bg-white text-black font-bold uppercase transition-all ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200'}`}
+              className={`retro-button py-4 text-xl bg-white text-black font-bold uppercase transition-all hover:bg-slate-200`}
             >
-              {isSaving ? '저장 중...' : 'PLAY AGAIN'}
+              PLAY AGAIN
             </button>
             <p className="text-[9px] text-slate-600 text-center uppercase tracking-widest">{debugMsg}</p>
           </div>
