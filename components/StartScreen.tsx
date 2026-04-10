@@ -26,12 +26,16 @@ export default function StartScreen() {
   }, []);
 
   const handleStart = () => {
-    if (name.trim() && subject.trim() && dept.trim() && studentName.trim()) {
+    console.log("Start button clicked, checking form validity...");
+    if (isFormValid) {
       localStorage.setItem('tetris_player_name', name);
       localStorage.setItem('tetris_subject', subject);
       localStorage.setItem('tetris_dept', dept);
       localStorage.setItem('tetris_student_name', studentName);
+      console.log("All info saved to localStorage, navigating to /game");
       router.push('/game');
+    } else {
+      console.log("Form is invalid, cannot start.");
     }
   };
 
