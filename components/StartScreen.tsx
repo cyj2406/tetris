@@ -6,113 +6,75 @@ import { useRouter } from 'next/navigation';
 
 export default function StartScreen() {
   const [mounted, setMounted] = useState(false);
-  const [name, setName] = useState('');
-  const [subject, setSubject] = useState('');
-  const [dept, setDept] = useState('');
-  const [studentName, setStudentName] = useState('');
+  const [playerName, setPlayerName] = useState('');
   const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
     const savedName = localStorage.getItem('tetris_player_name');
-    const savedSubject = localStorage.getItem('tetris_subject') || 'AI 코딩';
-    const savedDept = localStorage.getItem('tetris_dept') || '컴퓨터공학과';
-    const savedStudentName = localStorage.getItem('tetris_student_name') || '';
-
-    if (savedName) setName(savedName || '');
-    setSubject(savedSubject);
-    setDept(savedDept);
-    setStudentName(savedStudentName);
+    if (savedName) setPlayerName(savedName);
   }, []);
 
   const handleStart = () => {
-    console.log("Start button clicked, checking form validity...");
-    if (isFormValid) {
-      // Use studentName as the official player name for the game
-      localStorage.setItem('tetris_player_name', studentName);
-      localStorage.setItem('tetris_subject', subject);
-      localStorage.setItem('tetris_dept', dept);
-      localStorage.setItem('tetris_student_name', studentName);
-      console.log("All info saved to localStorage, navigating to /game");
+    if (playerName.trim()) {
+      localStorage.setItem('tetris_player_name', playerName.trim());
+      // For potential backward compatibility with other components
+      localStorage.setItem('tetris_student_name', playerName.trim());
       router.push('/game');
-    } else {
-      console.log("Form is invalid, cannot start.");
-    }
-  };
-
-  const handleQuit = () => {
-    if (typeof window !== 'undefined' && confirm('모든 입력 정보를 초기화하고 종료하시겠습니까?')) {
-      localStorage.clear();
-      setName('');
-      setStudentName('');
-      alert('정보가 삭제되었습니다. 브라우저 탭을 닫아주세요.');
     }
   };
 
   if (!mounted) return null;
 
-  // Reduced validation items: Now only subject, dept, and studentName are required
-  const isFormValid = subject.trim() !== '' && dept.trim() !== '' && studentName.trim() !== '';
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#1a1a1a]">
-      <div className="retro-container flex-col p-4 w-full max-w-[450px] animate-in fade-in zoom-in duration-500">
-        <div className="bg-black p-8 border border-[#444] rounded flex flex-col items-center gap-8 w-full">
-          <h1 className="text-5xl font-bold tracking-[0.2em] text-white text-center mb-4">
-            TETRIS
-          </h1>
-          
-          <div className="w-full space-y-4 pt-2">
-            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center mb-2">Student Information</h3>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#1a1a1a] w-full">
+      <div className="flex flex-col items-center justify-between min-h-[85vh] w-full max-w-[500px]">
+        {/* Top spacer for vertical centering of the main card */}
+        <div className="flex-1"></div>
+        
+        {/* Main Start Card */}
+        <div className="retro-container flex-col p-3 w-full animate-in fade-in zoom-in duration-500">
+          <div className="bg-black p-10 border border-[#444] rounded flex flex-col items-center gap-12 w-full">
+            <h1 className="text-6xl font-bold tracking-[0.2em] text-white text-center">
+              TETRIS
+            </h1>
             
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16 text-white">과목명:</span>
+            <div className="w-full space-y-6">
+              <div className="flex flex-col gap-4">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">
+                  사용자 이름
+                </label>
                 <input
                   type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="flex-1 bg-transparent border-b border-[#333] text-sm text-white focus:border-white focus:outline-none py-1"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16 text-white">학과:</span>
-                <input
-                  type="text"
-                  value={dept}
-                  onChange={(e) => setDept(e.target.value)}
-                  className="flex-1 bg-transparent border-b border-[#333] text-sm text-white focus:border-white focus:outline-none py-1"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap w-16 text-white">이름:</span>
-                <input
-                  type="text"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="본인 이름을 입력하세요"
-                  className="flex-1 bg-transparent border-b border-[#333] text-sm text-white focus:border-white focus:outline-none py-1"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  placeholder="이름을 입력하세요"
+                  className="w-full bg-transparent border-b border-[#333] text-xl text-white text-center focus:border-white focus:outline-none py-3 transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                  autoFocus
                 />
               </div>
             </div>
-          </div>
 
-          <div className="flex gap-3 w-full mt-4">
             <button
               onClick={handleStart}
-              disabled={!isFormValid}
-              className={`retro-button flex-1 py-4 text-xl ${!isFormValid ? 'opacity-30 border-slate-700 text-slate-700 cursor-not-allowed' : 'hover:bg-white hover:text-black hover:border-white'}`}
+              disabled={!playerName.trim()}
+              className={`retro-button py-5 text-2xl ${
+                !playerName.trim() 
+                  ? 'opacity-30 border-slate-700 text-slate-700 cursor-not-allowed' 
+                  : 'hover:bg-white hover:text-black hover:border-white'
+              }`}
             >
-              START
-            </button>
-            <button
-              onClick={handleQuit}
-              className="retro-button flex-1 py-4 text-xl border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all"
-            >
-              종료하기
+              게임 시작
             </button>
           </div>
+        </div>
+
+        {/* Footer Info aligned to the bottom */}
+        <div className="flex-1 flex items-end pb-12">
+          <p className="text-slate-500 font-bold tracking-widest text-lg opacity-90 font-mono">
+            AI코딩 202301910 최유정
+          </p>
         </div>
       </div>
     </div>
