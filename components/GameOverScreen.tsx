@@ -92,7 +92,25 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
             }
           }
 
-          // 5. 시간 데이터가 여전히 비어있다면
+          // 5. 시간 데이터 정제 (긴 날짜 문자열 등 처리)
+          if (foundTime && typeof foundTime === 'string' && foundTime.includes('1899')) {
+            // "00:13:00" 같은 부분만 추출 시도
+            const timeMatch = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
+            if (timeMatch) {
+              const extracted = timeMatch[0];
+              // 만약 00:13:00 이면 0:13 혹은 13:00 등으로 보정 (앞의 00: 제거)
+              const parts = extracted.split(':');
+              if (parts.length === 3 && parts[0] === '00') {
+                foundTime = `${parseInt(parts[1])}:${parts[2]}`;
+              } else if (parts.length === 3 && parts[0] !== '00') {
+                foundTime = `${parseInt(parts[0]) * 60 + parseInt(parts[1])}:${parts[2]}`;
+              } else {
+                foundTime = extracted;
+              }
+            }
+          }
+
+          // 6. 시간 데이터가 여전히 비어있거나 불완전하다면
           if (!foundTime && item.timeSeconds) foundTime = formatTime(item.timeSeconds);
           if (!foundTime) foundTime = '0:00';
 
