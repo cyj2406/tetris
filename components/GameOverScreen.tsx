@@ -57,9 +57,54 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
         const res = await fetch('/api/get-rankings');
         const data = await res.json();
         
-        const finalRankings = Array.isArray(data) ? data : (data.rankings || []);
-        if (finalRankings.length > 0) {
-          setRankings(finalRankings);
+        let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
+        
+        // 데이터 정형화 (Normalization)
+        const normalizedRankings = rawRankings.map((item: any) => {
+          // 1. 이름 찾기
+          // 우선권: 'playerName', 'Name', '이름', 'name', 'userName' ...
+          let foundName = item.playerName || item.Name || item['이름'] || item.name || item.userName || '';
+          
+          // 2. 시간 찾기
+          // 우선권: 'formattedTime', 'finishtime', 'FinishTime', '기록', 'time', 'Time' ...
+          let foundTime = item.formattedTime || item.finishtime || item.FinishTime || item['기록'] || item.time || item.Time || item['완료시간'];
+
+          // 3. 만약 필드명으로 못 찾았다면, 숫자 인덱스(배열 형태의 객체) 가능성 확인
+          if (!foundName && item[1]) foundName = item[1];
+          if (!foundTime && item[2]) foundTime = item[2];
+
+          // 4. 날짜/이름 뒤바뀜 방지 로직 (screenshot 이슈 대응)
+          // 만약 찾은 이름이 날짜 ISO 형식인 경우, 다른 필드에서 이름을 가져옴
+          const isDateStr = (s: any) => typeof s === 'string' && (s.includes('T') && s.includes('Z') || /^\d{4}-\d{2}-\d{2}/.test(s));
+          
+          if (isDateStr(foundName)) {
+            // 다른 필드 중 날짜가 아닌 문자열 찾기 (주로 'Name'이나 'playerName' 또는 인덱스 1)
+            const backup = item.playerName || item.Name || item['이름'] || item[1];
+            if (backup && !isDateStr(backup)) {
+              foundName = backup;
+            } else {
+              // 최후의 수단: 모든 필드를 뒤져서 날짜가 아닌 문자열 중 가장 이름 같은 것 찾기
+              const fields = Object.entries(item).find(([k, v]) => 
+                k !== 'name' && k !== 'date' && k !== '0' && 
+                typeof v === 'string' && v.length > 0 && !isDateStr(v)
+              );
+              if (fields) foundName = fields[1];
+            }
+          }
+
+          // 5. 시간 데이터가 여전히 비어있다면
+          if (!foundTime && item.timeSeconds) foundTime = formatTime(item.timeSeconds);
+          if (!foundTime) foundTime = '0:00';
+
+          return {
+            ...item,
+            name: foundName || 'Unknown',
+            formattedTime: foundTime
+          };
+        });
+
+        if (normalizedRankings.length > 0) {
+          setRankings(normalizedRankings);
           setDebugMsg('연동 완료');
         } else {
           setDebugMsg('저장 성공했으나 랭킹 목록이 비어있음');
