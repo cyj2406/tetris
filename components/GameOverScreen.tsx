@@ -40,7 +40,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
     try {
-      // 기록 저장 (WIN 또는 GAME_OVER)
+      // 1. 결과 저장
       if (status === 'WIN' || status === 'GAME_OVER') {
         setIsSaving(true);
         setDebugMsg('데이터 시트로 전송 중...');
@@ -56,23 +56,19 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
         });
         
         if (!saveRes.ok) {
-          const errStatus = saveRes.status;
-          const errText = await saveRes.text();
-          throw new Error(`서버 응답 오류 (${errStatus}): ${errText}`);
+          throw new Error(`저장 실패 (${saveRes.status})`);
         }
 
         const saveResult = await saveRes.json();
-        console.log('[SaveScore] Response:', saveResult);
-
         if (saveResult.success) {
           setDebugMsg('저장 성공! 랭킹 업데이트 중...');
           await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
-          throw new Error(saveResult.error || '알 수 없는 저장 실패');
+          throw new Error(saveResult.error || '저장 처리 실패');
         }
       }
 
-      // 랭킹 조회
+      // 2. 랭킹 조회
       console.log('[GetRankings] Fetching latest rankings...');
       const res = await fetch('/api/get-rankings');
       
@@ -81,87 +77,51 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       }
 
       const data = await res.json();
-      console.log('[GetRankings] Raw data:', data);
+      console.log('[GetRankings] Raw data received:', data);
       
       let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
       
+      // 3. 데이터 정형화 및 TOP 3 필터링
       const normalizedRankings = rawRankings.map((item: any, idx: number) => {
-        // 데이터가 없는 행 방지
-        if (!item) return null;
-
-        // 필드 파싱 함수
-        const isDate = (s: any) => {
-          const str = String(s).trim();
-          return str.includes('T') || str.includes('Z') || /^\d{4}[\.-]/.test(str);
-        };
-
-        const isTime = (s: any) => {
-          const str = String(s).trim();
-          if (isDate(str) || !str.includes(':')) return false;
-          return /^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(str) || str.includes('1899');
-        };
-
-        let name = 'Unknown';
-        let timeStr = '';
-
-        // 1. 이름 찾기 (JSON 키 또는 인덱스 1)
-        const nameCandidates = [item.playerName, item.name, item.Name, item.이름, item[1]];
-        for (const cand of nameCandidates) {
-          if (cand !== undefined && cand !== null && !isDate(cand) && !isTime(cand)) {
-            name = String(cand).trim();
-            break;
-          }
-        }
-
-        // 2. 시간 찾기 (JSON 키 또는 인덱스 2)
-        const timeCandidates = [item.finishtime, item.time, item.Time, item.기록, item[2]];
-        for (const cand of timeCandidates) {
-          if (cand !== undefined && cand !== null && isTime(cand)) {
-            timeStr = String(cand).trim();
-            break;
-          }
-        }
-
-        // 3. 전체 순회 (Fallback - 날짜 컬럼은 제외)
-        if (name === 'Unknown' || !timeStr) {
-          Object.entries(item).forEach(([k, v]) => {
-            if (!v || ['date', 'timestamp'].includes(k.toLowerCase()) || k === '0') return;
-            if (name === 'Unknown' && !isDate(v) && !isTime(v)) name = String(v);
-            if (!timeStr && isTime(v)) timeStr = String(v);
-          });
-        }
-
-        // 시간 파싱
+        // GAS에서 보내는 name, time 키값 사용
+        const rName = item.name || 'Unknown';
+        const rTimeStr = item.time || '0:00';
+        
         let totalSeconds = 999999;
-        if (timeStr) {
-          const clean = timeStr.includes(' ') ? timeStr.split(' ').pop() || '' : timeStr;
-          const parts = clean.split(':').map(Number);
-          if (parts.length === 3) {
-            // H:M:S -> 시각(H)이 10 이상이면 시각 오류로 판단하고 분:초만 취함
-            if (parts[0] > 0 && parts[0] < 5) totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            else totalSeconds = parts[1] * 60 + parts[2];
-          } else if (parts.length === 2) {
-            totalSeconds = parts[0] * 60 + parts[1];
-          }
+        
+        // 날짜가 포함된 시각 오류(ex: 11:31:08) 방지 로직
+        const cleanTime = rTimeStr.includes(' ') ? rTimeStr.split(' ').pop() || '' : rTimeStr;
+        const parts = cleanTime.split(':').map(Number);
+        
+        if (parts.length === 3) {
+          // H:M:S -> 테트리스는 보통 분:초이므로 H가 매우 크면 시각(TimeStamp)으로 판단
+          if (parts[0] > 0 && parts[0] < 5) totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          else totalSeconds = parts[1] * 60 + parts[2];
+        } else if (parts.length === 2) {
+          // M:S
+          totalSeconds = parts[0] * 60 + parts[1];
+        } else if (!isNaN(Number(cleanTime))) {
+          totalSeconds = Number(cleanTime);
         }
 
-        console.debug(`[Row #${idx}] Raw:`, item, `Mapped:`, { name, timeStr, totalSeconds });
-
-        return {
-          name: name.substring(0, 15),
+        const result = {
+          name: rName.substring(0, 15),
           formattedTime: formatTime(totalSeconds),
           timeSeconds: totalSeconds
         } as Ranking;
+
+        console.debug(`[Ranking #${idx}]`, { item, rName, rTimeStr, totalSeconds });
+        return result;
       })
-      .filter((r: any) => r !== null && r.name !== 'Unknown' && r.timeSeconds < 36000)
-      .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds)
-      .slice(0, 3);
+      .filter((r: Ranking) => r.name !== 'Unknown' && r.timeSeconds < 3600) // 1시간 미만 기록만
+      .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds) // 짧은 순 정렬
+      .slice(0, 3); // TOP 3만
 
       console.log('[Ranking] Final Display List:', normalizedRankings);
       setRankings(normalizedRankings);
       setDebugMsg('연동 완료');
     } catch (err: any) {
-      console.error('[GameOver] Error process:', err);
+      console.error('[GameOver] Error:', err);
       setDebugMsg('오류: ' + err.message);
     } finally {
       setIsSaving(false);
