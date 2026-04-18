@@ -83,25 +83,33 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       
       // 3. 데이터 정형화 및 TOP 3 필터링
       const normalizedRankings = rawRankings.map((item: any, idx: number) => {
-        // GAS에서 보내는 name, time 키값 사용
         const rName = item.name || 'Unknown';
-        const rTimeStr = item.time || '0:00';
+        const rTimeStr = String(item.time || '0:00');
         
         let totalSeconds = 999999;
         
-        // 날짜가 포함된 시각 오류(ex: 11:31:08) 방지 로직
-        const cleanTime = rTimeStr.includes(' ') ? rTimeStr.split(' ').pop() || '' : rTimeStr;
+        // 시간 패턴 추출 (HH:MM:SS 또는 MM:SS)
+        // 예: "Sat Dec 30 1899 00:16:00 GMT+..." -> "00:16:00" 추출
+        const timeMatch = rTimeStr.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
+        const cleanTime = timeMatch ? timeMatch[0] : rTimeStr;
+        
         const parts = cleanTime.split(':').map(Number);
         
         if (parts.length === 3) {
-          // H:M:S -> 테트리스는 보통 분:초이므로 H가 매우 크면 시각(TimeStamp)으로 판단
-          if (parts[0] > 0 && parts[0] < 5) totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-          else totalSeconds = parts[1] * 60 + parts[2];
+          // H:M:S -> 테트리스는 보통 분:초이거나 초 단위이므로 가공이 대다수임
+          // 만약 00:16:00 형식으로 왔다면, 사용자의 의도는 16초일 확률이 높으나 
+          // 일단 데이터대로 16분(960초)으로 처리하거나 상황에 맞게 조정
+          if (parts[0] === 0 && parts[1] > 0) {
+            // 00:MM:SS -> MM분 SS초
+            totalSeconds = parts[1] * 60 + parts[2];
+          } else if (parts[0] > 0 && parts[0] < 5) {
+            totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          } else {
+            // 시각 데이터인 경우(오전 11시 등) 마지막 두 파트만 사용
+            totalSeconds = parts[parts.length - 2] * 60 + parts[parts.length - 1];
+          }
         } else if (parts.length === 2) {
-          // M:S
           totalSeconds = parts[0] * 60 + parts[1];
-        } else if (!isNaN(Number(cleanTime))) {
-          totalSeconds = Number(cleanTime);
         }
 
         const result = {
@@ -110,7 +118,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           timeSeconds: totalSeconds
         } as Ranking;
 
-        console.debug(`[Ranking #${idx}]`, { item, rName, rTimeStr, totalSeconds });
+        console.debug(`[Ranking #${idx}]`, { item, rName, rTimeStr, cleanTime, totalSeconds });
         return result;
       })
       .filter((r: Ranking) => r.name !== 'Unknown' && r.timeSeconds < 3600) // 1시간 미만 기록만
