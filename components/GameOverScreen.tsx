@@ -86,91 +86,78 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
       
       const normalizedRankings = rawRankings.map((item: any, idx: number) => {
-        // 날짜 판별 (도트 구분자 포함)
-        const isDateStr = (s: any) => {
+        // 데이터가 없는 행 방지
+        if (!item) return null;
+
+        // 필드 파싱 함수
+        const isDate = (s: any) => {
           const str = String(s).trim();
-          return str.includes('T') || str.includes('Z') || /^\d{4}[\.-]\d{1,2}[\.-]\d{1,2}/.test(str);
-        };
-        
-        // 시간/기록 판별 (더 유연하게)
-        const isTimeStr = (s: any) => {
-          const str = String(s).trim();
-          if (isDateStr(str)) return false; 
-          // 숫자만 있거나, 하나 이상의 콜론이 포함된 경우 허용
-          return /^\d+$/.test(str) || (str.includes(':') && !str.includes('-'));
+          return str.includes('T') || str.includes('Z') || /^\d{4}[\.-]/.test(str);
         };
 
-        let foundName = '';
-        let foundTime = '';
+        const isTime = (s: any) => {
+          const str = String(s).trim();
+          if (isDate(str) || !str.includes(':')) return false;
+          return /^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(str) || str.includes('1899');
+        };
 
-        // 1. 이름 추출 (가장 긴 비-날짜/시간 문자열 선호)
-        const nameKeys = ['playerName', 'Name', '이름', 'userName', 'name'];
-        for (const key of nameKeys) {
-          if (item[key] && !isDateStr(item[key]) && !isTimeStr(item[key])) {
-            foundName = String(item[key]);
+        let name = 'Unknown';
+        let timeStr = '';
+
+        // 1. 이름 찾기 (JSON 키 또는 인덱스 1)
+        const nameCandidates = [item.playerName, item.name, item.Name, item.이름, item[1]];
+        for (const cand of nameCandidates) {
+          if (cand !== undefined && cand !== null && !isDate(cand) && !isTime(cand)) {
+            name = String(cand).trim();
             break;
           }
         }
 
-        // 2. 시간 추출
-        const timeKeys = ['finishtime', 'FinishTime', 'formattedTime', '기록', 'time', 'Time', '완료시간'];
-        for (const key of timeKeys) {
-          if (item[key] && isTimeStr(item[key])) {
-            foundTime = String(item[key]);
+        // 2. 시간 찾기 (JSON 키 또는 인덱스 2)
+        const timeCandidates = [item.finishtime, item.time, item.Time, item.기록, item[2]];
+        for (const cand of timeCandidates) {
+          if (cand !== undefined && cand !== null && isTime(cand)) {
+            timeStr = String(cand).trim();
             break;
           }
         }
 
-        // 3. Fallback 순회
-        const entries = Object.entries(item);
-        if (!foundName) {
-          const candidate = entries.find(([k, v]) => 
-            v && !isDateStr(v) && !isTimeStr(v) && !['date', 'timestamp', '0'].includes(k.toLowerCase())
-          );
-          if (candidate) foundName = String(candidate[1]);
-        }
-        if (!foundTime) {
-          const candidate = entries.find(([k, v]) => 
-            v && isTimeStr(v) && !['date', 'timestamp'].includes(k.toLowerCase())
-          );
-          if (candidate) foundTime = String(candidate[1]);
+        // 3. 전체 순회 (Fallback - 날짜 컬럼은 제외)
+        if (name === 'Unknown' || !timeStr) {
+          Object.entries(item).forEach(([k, v]) => {
+            if (!v || ['date', 'timestamp'].includes(k.toLowerCase()) || k === '0') return;
+            if (name === 'Unknown' && !isDate(v) && !isTime(v)) name = String(v);
+            if (!timeStr && isTime(v)) timeStr = String(v);
+          });
         }
 
-        // 시간 파싱 (초 단위 변환)
-        let timeSeconds = 999999;
-        if (foundTime) {
-          const cleanTime = foundTime.includes(' ') ? foundTime.split(' ').pop() || foundTime : foundTime;
-          const parts = cleanTime.split(':').map(Number);
-          
+        // 시간 파싱
+        let totalSeconds = 999999;
+        if (timeStr) {
+          const clean = timeStr.includes(' ') ? timeStr.split(' ').pop() || '' : timeStr;
+          const parts = clean.split(':').map(Number);
           if (parts.length === 3) {
-            // H:M:S
-            if (parts[0] > 0 && parts[0] < 5) timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            else timeSeconds = parts[1] * 60 + parts[2];
+            // H:M:S -> 시각(H)이 10 이상이면 시각 오류로 판단하고 분:초만 취함
+            if (parts[0] > 0 && parts[0] < 5) totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else totalSeconds = parts[1] * 60 + parts[2];
           } else if (parts.length === 2) {
-            // M:S
-            timeSeconds = parts[0] * 60 + parts[1];
-          } else if (!isNaN(Number(cleanTime))) {
-            // 초 단위 숫자
-            timeSeconds = Number(cleanTime);
+            totalSeconds = parts[0] * 60 + parts[1];
           }
-        } else if (item.timeSeconds) {
-          timeSeconds = item.timeSeconds;
         }
 
-        const result = { 
-          name: (foundName || 'Unknown').substring(0, 15), 
-          formattedTime: formatTime(timeSeconds),
-          timeSeconds: timeSeconds
-        } as Ranking;
+        console.debug(`[Row #${idx}] Raw:`, item, `Mapped:`, { name, timeStr, totalSeconds });
 
-        console.debug(`[Ranking #${idx}]`, { item, foundName, foundTime, timeSeconds });
-        return result;
+        return {
+          name: name.substring(0, 15),
+          formattedTime: formatTime(totalSeconds),
+          timeSeconds: totalSeconds
+        } as Ranking;
       })
-      .filter((r: Ranking) => r.timeSeconds < 86400) // 24시간 미만 데이터만 유효
+      .filter((r: any) => r !== null && r.name !== 'Unknown' && r.timeSeconds < 36000)
       .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds)
       .slice(0, 3);
 
-      console.log('[Ranking] Final list:', normalizedRankings);
+      console.log('[Ranking] Final Display List:', normalizedRankings);
       setRankings(normalizedRankings);
       setDebugMsg('연동 완료');
     } catch (err: any) {
