@@ -141,10 +141,10 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
             name: foundName || 'Unknown', 
             formattedTime: (foundTime && foundTime.includes(':')) ? foundTime : formatTime(timeSeconds),
             timeSeconds: timeSeconds
-          };
+          } as Ranking;
         })
-        .filter(r => r.name !== 'Unknown' || r.formattedTime !== '0:00') // 의미 없는 데이터 제외
-        .sort((a, b) => a.timeSeconds - b.timeSeconds) // 시간순 정렬 (적은 기록이 위)
+        .filter((r: Ranking) => r.name !== 'Unknown' || r.formattedTime !== '0:00') // 의미 없는 데이터 제외
+        .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds) // 시간순 정렬 (적은 기록이 위)
         .slice(0, 3); // 상위 3개만
 
         setRankings(normalizedRankings);
