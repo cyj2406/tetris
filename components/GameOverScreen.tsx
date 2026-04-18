@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -21,9 +20,15 @@ interface GameOverScreenProps {
 export default function GameOverScreen({ status, score, timer, linesCleared, playerName, onRestart }: GameOverScreenProps) {
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [debugMsg, setDebugMsg] = useState('시스템 준비 중...');
   const hasSaved = useRef(false);
+
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleSaveAndFetch = async () => {
     const studentName = localStorage.getItem('tetris_student_name');
@@ -35,7 +40,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
     try {
-      // WIN 또는 GAME_OVER 상태일 때 기록 저장
+      // 기록 저장 (WIN 또는 GAME_OVER)
       if (status === 'WIN' || status === 'GAME_OVER') {
         setIsSaving(true);
         setDebugMsg('데이터 시트로 전송 중...');
@@ -80,9 +85,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       
       let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
       
-      // 데이터 정형화 로직 (동일함)
       const normalizedRankings = rawRankings.map((item: any) => {
-        // ... (이후 로직은 그대로 유지하되 r: Ranking 타입 명시)
         const isDateStr = (s: any) => typeof s === 'string' && (s.includes('T') && s.includes('Z') || /^\d{4}-\d{2}-\d{2}/.test(s));
         const isTimeStr = (s: any) => typeof s === 'string' && (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(s.trim()) || s.includes('1899'));
 
@@ -170,12 +173,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     hasSaved.current = true;
     handleSaveAndFetch();
   }, [playerName, timer]);
-
-  const formatTime = (s: number) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   return (
     <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 backdrop-blur-md text-white">
