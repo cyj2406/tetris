@@ -69,28 +69,51 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
         
         let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
         
-        // 데이터 정형화 (Normalization)
+        // 데이터 정형화 (Normalization) 및 정제
         const normalizedRankings = rawRankings.map((item: any) => {
-          // ... (기존 정형화 로직 유지)
-          // 1. 이름 찾기
-          let foundName = item.playerName || item.Name || item['이름'] || item.name || item.userName || '';
-          // 2. 시간 찾기
-          let foundTime = item.formattedTime || item.finishtime || item.FinishTime || item['기록'] || item.time || item.Time || item['완료시간'];
-          if (!foundName && item[1]) foundName = item[1];
-          if (!foundTime && item[2]) foundTime = item[2];
-
-          // 4. 날짜/이름 뒤바뀜 방지
           const isDateStr = (s: any) => typeof s === 'string' && (s.includes('T') && s.includes('Z') || /^\d{4}-\d{2}-\d{2}/.test(s));
-          if (isDateStr(foundName)) {
-            const backup = item.playerName || item.Name || item['이름'] || item[1];
-            if (backup && !isDateStr(backup)) foundName = backup;
-            else {
-              const fields = Object.entries(item).find(([k, v]) => k !== 'name' && k !== 'date' && k !== '0' && typeof v === 'string' && v.length > 0 && !isDateStr(v));
-              if (fields) foundName = fields[1];
+          const isTimeStr = (s: any) => typeof s === 'string' && (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(s.trim()) || s.includes('1899'));
+
+          let foundName = '';
+          let foundTime = '';
+
+          // 1. 이름 찾기 (명시적 키 우선, 날짜/시간 제외)
+          const nameKeys = ['playerName', 'Name', '이름', 'userName', 'name'];
+          for (const key of nameKeys) {
+            const val = item[key];
+            if (val && typeof val === 'string' && !isDateStr(val) && !isTimeStr(val)) {
+              foundName = val;
+              break;
             }
           }
 
-          // 5. 시간 데이터 정제
+          // 2. 시간 찾기 (명시적 키 우선)
+          const timeKeys = ['finishtime', 'FinishTime', 'formattedTime', '기록', 'time', 'Time', '완료시간'];
+          for (const key of timeKeys) {
+            const val = item[key];
+            if (val !== undefined && val !== null) {
+              const sVal = String(val);
+              if (isTimeStr(sVal)) {
+                foundTime = sVal;
+                break;
+              }
+            }
+          }
+
+          // 3. 배열/객체 순회하며 못 찾은 값 보완
+          const allValues = Object.entries(item);
+          if (!foundName) {
+            const candidate = allValues.find(([k, v]) => 
+              typeof v === 'string' && v.length > 0 && !isDateStr(v) && !isTimeStr(v) && k !== '0' && k !== 'date'
+            );
+            if (candidate) foundName = candidate[1] as string;
+          }
+          if (!foundTime) {
+            const candidate = allValues.find(([k, v]) => typeof v === 'string' && isTimeStr(v));
+            if (candidate) foundTime = candidate[1] as string;
+          }
+
+          // 4. 시간 데이터 정제 (1899 날짜 포함된 경우 등)
           if (foundTime && typeof foundTime === 'string' && foundTime.includes('1899')) {
             const timeMatch = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
             if (timeMatch) {
@@ -101,11 +124,28 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
               else foundTime = extracted;
             }
           }
-          if (!foundTime && item.timeSeconds) foundTime = formatTime(item.timeSeconds);
-          if (!foundTime) foundTime = '0:00';
 
-          return { ...item, name: foundName || 'Unknown', formattedTime: foundTime };
-        });
+          // 5. 숫자로 된 시간 처리 (초 단위 등)
+          let timeSeconds = 999999;
+          if (foundTime) {
+            const parts = foundTime.split(':').map(Number);
+            if (parts.length === 3) timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) timeSeconds = parts[0] * 60 + parts[1];
+            else if (!isNaN(Number(foundTime))) timeSeconds = Number(foundTime);
+          } else if (item.timeSeconds) {
+            timeSeconds = item.timeSeconds;
+            foundTime = formatTime(timeSeconds);
+          }
+
+          return { 
+            name: foundName || 'Unknown', 
+            formattedTime: (foundTime && foundTime.includes(':')) ? foundTime : formatTime(timeSeconds),
+            timeSeconds: timeSeconds
+          };
+        })
+        .filter(r => r.name !== 'Unknown' || r.formattedTime !== '0:00') // 의미 없는 데이터 제외
+        .sort((a, b) => a.timeSeconds - b.timeSeconds) // 시간순 정렬 (적은 기록이 위)
+        .slice(0, 3); // 상위 3개만
 
         setRankings(normalizedRankings);
         setDebugMsg('연동 완료');
