@@ -35,49 +35,60 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
     const formattedFinishedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
     try {
-      // WIN 또는 GAME_OVER 상태일 때 기록 저장 (사용자의 요청에 따라 모든 결과 기록)
+      // WIN 또는 GAME_OVER 상태일 때 기록 저장
       if (status === 'WIN' || status === 'GAME_OVER') {
         setIsSaving(true);
         setDebugMsg('데이터 시트로 전송 중...');
-        console.log('Saving score for:', actualName, 'Time:', formattedFinishedTime, 'Status:', status);
+        console.log('[SaveScore] Initiating save...', { name: actualName, time: formattedFinishedTime, status });
         
         const saveRes = await fetch('/api/save-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: actualName + (status === 'GAME_OVER' ? ' (F)' : ''), // GAME_OVER인 경우 표시
+            name: actualName + (status === 'GAME_OVER' ? ' (F)' : ''),
             finishtime: formattedFinishedTime
           }),
         });
         
+        if (!saveRes.ok) {
+          const errStatus = saveRes.status;
+          const errText = await saveRes.text();
+          throw new Error(`서버 응답 오류 (${errStatus}): ${errText}`);
+        }
+
         const saveResult = await saveRes.json();
+        console.log('[SaveScore] Response:', saveResult);
+
         if (saveResult.success) {
           setDebugMsg('저장 성공! 랭킹 업데이트 중...');
-          // 시트 반영을 위해 좀 더 넉넉히 대기 (2초)
           await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
-          setDebugMsg('저장 실패: ' + (saveResult.error || '통신 오류'));
-          setIsSaving(false);
-          setLoading(false);
-          return;
+          throw new Error(saveResult.error || '알 수 없는 저장 실패');
         }
       }
 
       // 랭킹 조회
+      console.log('[GetRankings] Fetching latest rankings...');
       const res = await fetch('/api/get-rankings');
+      
+      if (!res.ok) {
+        throw new Error(`랭킹 데이터 조회 실패 (${res.status})`);
+      }
+
       const data = await res.json();
+      console.log('[GetRankings] Raw data:', data);
       
       let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
       
-      // 데이터 정형화 (Normalization) 및 정제
+      // 데이터 정형화 로직 (동일함)
       const normalizedRankings = rawRankings.map((item: any) => {
+        // ... (이후 로직은 그대로 유지하되 r: Ranking 타입 명시)
         const isDateStr = (s: any) => typeof s === 'string' && (s.includes('T') && s.includes('Z') || /^\d{4}-\d{2}-\d{2}/.test(s));
         const isTimeStr = (s: any) => typeof s === 'string' && (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(s.trim()) || s.includes('1899'));
 
         let foundName = '';
         let foundTime = '';
 
-        // 1. 이름 찾기 (명시적 키 우선, 날짜/시간 제외)
         const nameKeys = ['playerName', 'Name', '이름', 'userName', 'name'];
         for (const key of nameKeys) {
           const val = item[key];
@@ -87,7 +98,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           }
         }
 
-        // 2. 시간 찾기 (명시적 키 우선)
         const timeKeys = ['finishtime', 'FinishTime', 'formattedTime', '기록', 'time', 'Time', '완료시간'];
         for (const key of timeKeys) {
           const val = item[key];
@@ -100,7 +110,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           }
         }
 
-        // 3. 배열/객체 순회하며 못 찾은 값 보완
         const allValues = Object.entries(item);
         if (!foundName) {
           const candidate = allValues.find(([k, v]) => 
@@ -113,7 +122,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           if (candidate) foundTime = candidate[1] as string;
         }
 
-        // 4. 시간 데이터 정제 (1899 날짜 포함된 경우 등)
         if (foundTime && typeof foundTime === 'string' && foundTime.includes('1899')) {
           const timeMatch = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
           if (timeMatch) {
@@ -125,7 +133,6 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           }
         }
 
-        // 5. 숫자로 된 시간 처리 (초 단위 등)
         let timeSeconds = 999999;
         if (foundTime) {
           const parts = foundTime.split(':').map(Number);
@@ -145,13 +152,13 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       })
       .filter((r: Ranking) => r.name !== 'Unknown' || r.formattedTime !== '0:00')
       .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds)
-      .slice(0, 5); // 상위 5개로 확장
+      .slice(0, 5);
 
       setRankings(normalizedRankings);
       setDebugMsg('연동 완료');
     } catch (err: any) {
-      setDebugMsg('네트워크 에러: ' + err.message);
-      console.error(err);
+      console.error('[GameOver] Error process:', err);
+      setDebugMsg('오류: ' + err.message);
     } finally {
       setIsSaving(false);
       setLoading(false);
@@ -190,41 +197,38 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
             </div>
           </div>
 
-          {/* 성공(WIN)인 경우에만 랭킹 테이블 표시 */}
-          {status === 'WIN' && (
-            <div className="w-full space-y-3">
-              <h3 className="text-xs font-bold text-center text-slate-400 uppercase tracking-[0.2em] mb-2">Top 3 Ranking (by Time)</h3>
-              <div className="bg-[#0a0a0a] border border-[#222] rounded overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#111] border-b border-[#222]">
-                    <tr className="text-[10px] text-slate-500 uppercase">
-                      <th className="py-2 px-4 text-left">No</th>
-                      <th className="py-2 px-4 text-left">Name</th>
-                      <th className="py-2 px-4 text-right">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-mono text-sm font-bold">
-                    {loading ? (
-                      <tr><td colSpan={3} className="py-6 text-center text-xs italic text-slate-600 font-normal">Loading...</td></tr>
-                    ) : rankings.length > 0 ? (
-                      rankings.map((r, i) => (
-                        <tr key={i} className="border-b border-[#111] last:border-0 hover:bg-white/5">
-                          <td className="py-2 px-4 text-cyan-500">#{i + 1}</td>
-                          <td className="py-2 px-4 truncate max-w-[150px]">{r.name}</td>
-                          <td className="py-2 px-4 text-right">{r.formattedTime}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={3} className="py-6 text-center text-xs text-slate-600 font-normal">No records found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          <div className="w-full space-y-3">
+            <h3 className="text-xs font-bold text-center text-slate-400 uppercase tracking-[0.2em] mb-2">TOP 5 RANKING (BY TIME)</h3>
+            <div className="bg-[#0a0a0a] border border-[#222] rounded overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-[#111] border-b border-[#222]">
+                  <tr className="text-[10px] text-slate-500 uppercase">
+                    <th className="py-2 px-4 text-left">No</th>
+                    <th className="py-2 px-4 text-left">Name</th>
+                    <th className="py-2 px-4 text-right">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono text-sm font-bold">
+                  {loading ? (
+                    <tr><td colSpan={3} className="py-6 text-center text-xs italic text-slate-600 font-normal">Loading...</td></tr>
+                  ) : rankings.length > 0 ? (
+                    rankings.map((r, i) => (
+                      <tr key={i} className="border-b border-[#111] last:border-0 hover:bg-white/5">
+                        <td className="py-2 px-4 text-cyan-500">#{i + 1}</td>
+                        <td className="py-2 px-4 truncate max-w-[150px]">{r.name}</td>
+                        <td className="py-2 px-4 text-right">{r.formattedTime}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={3} className="py-6 text-center text-xs text-slate-600 font-normal">No records found.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
 
           <div className="flex flex-col w-full gap-2">
-            {!isSaving && debugMsg.includes('실패') && (
+            {!isSaving && (debugMsg.includes('오류') || debugMsg.includes('실패')) && (
               <button 
                 onClick={handleSaveAndFetch}
                 className="text-[10px] text-red-400 underline hover:text-red-300 transition-colors uppercase tracking-widest mb-1"
