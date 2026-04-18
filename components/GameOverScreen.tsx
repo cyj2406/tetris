@@ -86,66 +86,73 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       let rawRankings = Array.isArray(data) ? data : (data.rankings || []);
       
       const normalizedRankings = rawRankings.map((item: any) => {
-        const isDateStr = (s: any) => typeof s === 'string' && (s.includes('T') && s.includes('Z') || /^\d{4}-\d{2}-\d{2}/.test(s));
-        const isTimeStr = (s: any) => typeof s === 'string' && (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(s.trim()) || s.includes('1899') || (s.includes(':') && !s.includes('-')));
+        // 날짜/시간 판별 로직 강화 (한국식 도트 구분 포함)
+        const isDateStr = (s: any) => {
+          if (typeof s !== 'string') return false;
+          return s.includes('T') || /^\d{4}[\.-]\d{1,2}[\.-]\d{1,2}/.test(s.trim());
+        };
+        
+        const isTimeStr = (s: any) => {
+          if (typeof s !== 'string') return false;
+          const clean = s.trim();
+          if (isDateStr(clean)) return false; // 날짜가 포함되면 시간이 아님
+          return /^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(clean) || clean.includes('1899');
+        };
 
         let foundName = '';
         let foundTime = '';
 
+        // 1. 이름 찾기 (명시적 키 우선)
         const nameKeys = ['playerName', 'Name', '이름', 'userName', 'name'];
         for (const key of nameKeys) {
           const val = item[key];
-          if (val && typeof val === 'string' && !isDateStr(val) && !isTimeStr(val)) {
-            foundName = val;
+          if (val !== undefined && val !== null && !isDateStr(String(val)) && !isTimeStr(String(val))) {
+            foundName = String(val);
             break;
           }
         }
 
+        // 2. 시간 찾기 (명시적 키 지원 및 날짜 제외)
         const timeKeys = ['finishtime', 'FinishTime', 'formattedTime', '기록', 'time', 'Time', '완료시간'];
         for (const key of timeKeys) {
           const val = item[key];
-          if (val !== undefined && val !== null) {
-            const sVal = String(val);
-            if (isTimeStr(sVal)) {
-              foundTime = sVal;
-              break;
-            }
+          if (val !== undefined && val !== null && isTimeStr(String(val))) {
+            foundTime = String(val);
+            break;
           }
         }
 
-        const allValues = Object.entries(item);
+        // 3. Fallback: 전체 순회 (불확실하므로 date/timestamp 키는 제외)
+        const allEntries = Object.entries(item);
         if (!foundName) {
-          const candidate = allValues.find(([k, v]) => 
-            typeof v === 'string' && v.length > 0 && !isDateStr(v) && !isTimeStr(v) && k !== '0' && k !== 'date'
+          const candidate = allEntries.find(([k, v]) => 
+            v !== undefined && v !== null && !isDateStr(String(v)) && !isTimeStr(String(v)) && !['date', 'timestamp', '0'].includes(k.toLowerCase())
           );
-          if (candidate) foundName = candidate[1] as string;
+          if (candidate) foundName = String(candidate[1]);
         }
         if (!foundTime) {
-          const candidate = allValues.find(([k, v]) => typeof v === 'string' && isTimeStr(v));
-          if (candidate) foundTime = candidate[1] as string;
+          const candidate = allEntries.find(([k, v]) => 
+            v !== undefined && v !== null && isTimeStr(String(v)) && !['date', 'timestamp'].includes(k.toLowerCase())
+          );
+          if (candidate) foundTime = String(candidate[1]);
         }
 
-        // 시간 데이터 정교하게 파싱 (942:08 같은 시각 오류 방지)
+        // 시간 데이터 파싱
         let timeSeconds = 999999;
-        if (foundTime && typeof foundTime === 'string') {
-          // 날짜 정보가 섞여있다면 시간 부분만 추출
-          if (foundTime.includes('T') || foundTime.includes('-') || foundTime.includes(' ')) {
-            const match = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
-            if (match) foundTime = match[0];
+        if (foundTime) {
+          if (foundTime.includes('T') || foundTime.includes(' ')) {
+             const match = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
+             if (match) foundTime = match[0];
           }
 
           const parts = foundTime.split(':').map(Number);
           if (parts.length === 3) {
             // H:M:S -> 테트리스는 보통 분:초이므로 H가 매우 크면 시각(Timestamp)으로 판단
-            if (parts[0] > 0 && parts[0] < 5) { // 5시간 미만이면 기록으로 인정
-              timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            } else {
-              // 그 외엔 M:S 부분만 사용 (시각 오류 회피)
-              timeSeconds = parts[1] * 60 + parts[2];
-            }
+            if (parts[0] > 0 && parts[0] < 5) timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else timeSeconds = parts[1] * 60 + parts[2];
           } else if (parts.length === 2) {
             timeSeconds = parts[0] * 60 + parts[1];
-          } else if (!isNaN(Number(foundTime)) && Number(foundTime) < 3600) {
+          } else if (!isNaN(Number(foundTime))) {
             timeSeconds = Number(foundTime);
           }
         } else if (item.timeSeconds) {
