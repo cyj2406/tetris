@@ -125,37 +125,37 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           if (candidate) foundTime = candidate[1] as string;
         }
 
+        // 시간 데이터 정제
         if (foundTime && typeof foundTime === 'string' && foundTime.includes('1899')) {
           const timeMatch = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
-          if (timeMatch) {
-            const extracted = timeMatch[0];
-            const parts = extracted.split(':');
-            if (parts.length === 3 && parts[0] === '00') foundTime = `${parseInt(parts[1])}:${parts[2]}`;
-            else if (parts.length === 3 && parts[0] !== '00') foundTime = `${parseInt(parts[0]) * 60 + parseInt(parts[1])}:${parts[2]}`;
-            else foundTime = extracted;
-          }
+          if (timeMatch) foundTime = timeMatch[0];
         }
 
         let timeSeconds = 999999;
         if (foundTime) {
           const parts = foundTime.split(':').map(Number);
-          if (parts.length === 3) timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-          else if (parts.length === 2) timeSeconds = parts[0] * 60 + parts[1];
-          else if (!isNaN(Number(foundTime))) timeSeconds = Number(foundTime);
+          if (parts.length === 3) {
+            // H:M:S 케이스. 만약 첫 부분이 '00'이면 M:S로 취급
+            if (parts[0] === 0) timeSeconds = parts[1] * 60 + parts[2];
+            else timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+          } else if (parts.length === 2) {
+            timeSeconds = parts[0] * 60 + parts[1];
+          } else if (!isNaN(Number(foundTime))) {
+            timeSeconds = Number(foundTime);
+          }
         } else if (item.timeSeconds) {
           timeSeconds = item.timeSeconds;
-          foundTime = formatTime(timeSeconds);
         }
 
         return { 
           name: foundName || 'Unknown', 
-          formattedTime: (foundTime && foundTime.includes(':')) ? foundTime : formatTime(timeSeconds),
+          formattedTime: formatTime(timeSeconds),
           timeSeconds: timeSeconds
         } as Ranking;
       })
-      .filter((r: Ranking) => r.name !== 'Unknown' || r.formattedTime !== '0:00')
+      .filter((r: Ranking) => r.name !== 'Unknown' && r.timeSeconds < 99999)
       .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds)
-      .slice(0, 5);
+      .slice(0, 3); // 상위 3명 고정
 
       setRankings(normalizedRankings);
       setDebugMsg('연동 완료');
@@ -195,7 +195,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           </div>
 
           <div className="w-full space-y-3">
-            <h3 className="text-xs font-bold text-center text-slate-400 uppercase tracking-[0.2em] mb-2">TOP 5 RANKING (BY TIME)</h3>
+            <h3 className="text-xs font-bold text-center text-slate-400 uppercase tracking-[0.2em] mb-2">TOP 3 RANKING (BY TIME)</h3>
             <div className="bg-[#0a0a0a] border border-[#222] rounded overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-[#111] border-b border-[#222]">
