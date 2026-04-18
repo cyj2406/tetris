@@ -87,7 +87,7 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
       
       const normalizedRankings = rawRankings.map((item: any) => {
         const isDateStr = (s: any) => typeof s === 'string' && (s.includes('T') && s.includes('Z') || /^\d{4}-\d{2}-\d{2}/.test(s));
-        const isTimeStr = (s: any) => typeof s === 'string' && (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(s.trim()) || s.includes('1899'));
+        const isTimeStr = (s: any) => typeof s === 'string' && (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(s.trim()) || s.includes('1899') || (s.includes(':') && !s.includes('-')));
 
         let foundName = '';
         let foundTime = '';
@@ -125,22 +125,27 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           if (candidate) foundTime = candidate[1] as string;
         }
 
-        // 시간 데이터 정제
-        if (foundTime && typeof foundTime === 'string' && foundTime.includes('1899')) {
-          const timeMatch = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
-          if (timeMatch) foundTime = timeMatch[0];
-        }
-
+        // 시간 데이터 정교하게 파싱 (942:08 같은 시각 오류 방지)
         let timeSeconds = 999999;
-        if (foundTime) {
+        if (foundTime && typeof foundTime === 'string') {
+          // 날짜 정보가 섞여있다면 시간 부분만 추출
+          if (foundTime.includes('T') || foundTime.includes('-') || foundTime.includes(' ')) {
+            const match = foundTime.match(/(\d{1,2}:\d{2}:\d{2})|(\d{1,2}:\d{2})/);
+            if (match) foundTime = match[0];
+          }
+
           const parts = foundTime.split(':').map(Number);
           if (parts.length === 3) {
-            // H:M:S 케이스. 만약 첫 부분이 '00'이면 M:S로 취급
-            if (parts[0] === 0) timeSeconds = parts[1] * 60 + parts[2];
-            else timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            // H:M:S -> 테트리스는 보통 분:초이므로 H가 매우 크면 시각(Timestamp)으로 판단
+            if (parts[0] > 0 && parts[0] < 5) { // 5시간 미만이면 기록으로 인정
+              timeSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else {
+              // 그 외엔 M:S 부분만 사용 (시각 오류 회피)
+              timeSeconds = parts[1] * 60 + parts[2];
+            }
           } else if (parts.length === 2) {
             timeSeconds = parts[0] * 60 + parts[1];
-          } else if (!isNaN(Number(foundTime))) {
+          } else if (!isNaN(Number(foundTime)) && Number(foundTime) < 3600) {
             timeSeconds = Number(foundTime);
           }
         } else if (item.timeSeconds) {
@@ -153,9 +158,9 @@ export default function GameOverScreen({ status, score, timer, linesCleared, pla
           timeSeconds: timeSeconds
         } as Ranking;
       })
-      .filter((r: Ranking) => r.name !== 'Unknown' && r.timeSeconds < 99999)
+      .filter((r: Ranking) => r.name !== 'Unknown' && r.timeSeconds < 36000)
       .sort((a: Ranking, b: Ranking) => a.timeSeconds - b.timeSeconds)
-      .slice(0, 3); // 상위 3명 고정
+      .slice(0, 3);
 
       setRankings(normalizedRankings);
       setDebugMsg('연동 완료');
